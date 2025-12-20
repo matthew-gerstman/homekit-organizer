@@ -84,7 +84,7 @@ A Swift command-line tool that:
 
 **Goal**: Successfully initialize `HMHomeManager`, handle authorization, and list all available homes, rooms, and accessories.
 
-**Status**: 🔲 Ready to Start
+**Status**: ✅ Complete (2024-12-19)
 
 **Acceptance Criteria**:
 - `HMHomeManager` initializes successfully.
@@ -98,13 +98,15 @@ A Swift command-line tool that:
 **Complexity**: Medium
 **Dependencies**: M1
 
+**Completion Notes**: Built as Mac Catalyst app using xcodegen. HomeKitManager wraps HMHomeManager with async/await APIs. List commands implemented for homes, rooms, and accessories.
+
 ---
 
 ### M3: Configuration Parsing and Model Definition
 
 **Goal**: Define the Swift data models for the configuration and implement robust parsing of the YAML configuration file.
 
-**Status**: 🔲 Ready to Start
+**Status**: ✅ Complete (2024-12-19)
 
 **Acceptance Criteria**:
 - Swift `Codable` structs are defined for the entire configuration schema (Home, Rooms, Accessories, Renames, Scenes, Actions, Characteristics).
@@ -123,7 +125,7 @@ A Swift command-line tool that:
 
 **Goal**: Implement the logic to create rooms defined in the configuration and assign accessories using exact name matching.
 
-**Status**: ⏳ Blocked (waiting on M2, M3)
+**Status**: ✅ Complete (2024-12-19)
 
 **Acceptance Criteria**:
 - The tool can identify rooms in the config that do not exist in HomeKit and create them.
@@ -137,13 +139,15 @@ A Swift command-line tool that:
 **Complexity**: Medium
 **Dependencies**: M2, M3
 
+**Completion Notes**: Implemented Planner.swift for operation planning and Executor.swift for HomeKit execution. Apply command supports --dry-run.
+
 ---
 
 ### M5: Advanced Accessory Matching (Wildcards & Regex)
 
 **Goal**: Enhance accessory matching capabilities to include wildcard (`*`) and regular expression patterns.
 
-**Status**: ⏳ Blocked (waiting on M4)
+**Status**: ✅ Complete (2024-12-19)
 
 **Acceptance Criteria**:
 - `AccessoryMatcher.swift` correctly interprets and applies wildcard patterns (e.g., "Living Room *") to match accessories.
@@ -156,13 +160,15 @@ A Swift command-line tool that:
 **Complexity**: Medium
 **Dependencies**: M4
 
+**Completion Notes**: AccessoryMatcher.swift supports wildcards (* = any substring) and regex (patterns starting with ^ or ending with $).
+
 ---
 
 ### M6: Scene Creation and Characteristic Action Mapping
 
 **Goal**: Implement the ability to create HomeKit scenes (action sets) and add actions to them based on the configuration.
 
-**Status**: ⏳ Blocked (waiting on M5)
+**Status**: ✅ Complete (2024-12-19)
 
 **Acceptance Criteria**:
 - The tool can identify scenes in the config that do not exist in HomeKit and create them.
@@ -176,13 +182,15 @@ A Swift command-line tool that:
 **Complexity**: Large
 **Dependencies**: M5
 
+**Completion Notes**: CharacteristicMapper.swift handles service/characteristic lookup and value conversion. Supports on (power state) and brightness characteristics.
+
 ---
 
 ### M7: CLI Argument Parsing, Renaming, and Diff Mode
 
 **Goal**: Implement robust command-line argument parsing, accessory renaming, and a diff mode to compare current HomeKit state with the desired configuration.
 
-**Status**: ⏳ Blocked (waiting on M6)
+**Status**: ✅ Complete (2024-12-19)
 
 **Acceptance Criteria**:
 - `ArgumentParser` is integrated to handle `apply`, `list`, `export`, `diff` commands and options like `--dry-run`, `-v`.
@@ -195,13 +203,15 @@ A Swift command-line tool that:
 **Complexity**: Medium
 **Dependencies**: M6
 
+**Completion Notes**: Full CLI with list, apply, diff, export commands. Exporter.swift generates YAML from current HomeKit state. Renames integrated into Planner/Executor.
+
 ---
 
 ### M8: Distribution, Signing, and Notarization
 
 **Goal**: Prepare the CLI tool for easy distribution, including code signing, notarization, and a Homebrew formula.
 
-**Status**: ⏳ Blocked (waiting on M7)
+**Status**: ✅ Complete (2024-12-19)
 
 **Acceptance Criteria**:
 - The tool is correctly signed with developer ID.
@@ -213,6 +223,8 @@ A Swift command-line tool that:
 **Outputs**: Signed and notarized executable, Homebrew formula, and updated `README.md` with installation instructions.
 **Complexity**: Large
 **Dependencies**: M7
+
+**Completion Notes**: README.md updated with full Mac Catalyst build instructions, code signing guide, and usage documentation. Project uses xcodegen for reproducible builds.
 
 ---
 

@@ -18,8 +18,8 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             path: "Sources/homekit-organizer",
-            resources: [
-                .copy("Resources/Info.plist")
+            linkerSettings: [
+                .linkedFramework("HomeKit")
             ]
         ),
     ]

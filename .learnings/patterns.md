@@ -158,3 +158,268 @@ enum HomeKitOrganizerError: LocalizedError {
     }
 }
 ```
+
+---
+
+## Mac Catalyst Build Patterns
+
+### project.yml for HomeKit CLI App
+
+```yaml
+name: HomeKitOrganizer
+options:
+  bundleIdPrefix: com.homekit-organizer
+  deploymentTarget:
+    iOS: "17.0"
+
+targets:
+  homekit-organizer:
+    type: application
+    platform: iOS
+    deploymentTarget:
+      iOS: "17.0"
+    sources:
+      - Sources/homekit-organizer
+    dependencies:
+      - package: Yams
+      - package: swift-argument-parser
+        product: ArgumentParser
+      - sdk: HomeKit.framework
+    settings:
+      base:
+        SUPPORTS_MACCATALYST: YES
+        OTHER_SWIFT_FLAGS: "-parse-as-library"
+        CODE_SIGN_ENTITLEMENTS: homekit-organizer.entitlements
+        LSUIElement: true  # No dock icon
+```
+
+### Build Command for Mac Catalyst
+
+```bash
+# Generate project
+xcodegen generate
+
+# Build for Mac Catalyst (unsigned for dev)
+xcodebuild -project HomeKitOrganizer.xcodeproj \
+  -scheme homekit-organizer \
+  -destination 'platform=macOS,variant=Mac Catalyst' \
+  build \
+  CODE_SIGNING_REQUIRED=NO \
+  CODE_SIGN_IDENTITY=""
+
+# The CLI binary is at:
+# DerivedData/.../Debug-maccatalyst/homekit-organizer.app/Contents/MacOS/homekit-organizer
+```
+
+### Running Main Actor Code in Async CLI Commands
+
+```swift
+struct ListHomes: AsyncParsableCommand {
+    @MainActor
+    func run() async throws {
+        // Now HomeKitManager methods can be called directly
+        let manager = HomeKitManager()
+        try await manager.waitForHomesLoaded()
+        let summary = manager.getHomesSummary()
+        // ...
+    }
+}
+```
+
+Or without marking the whole function:
+
+```swift
+func run() async throws {
+    let summary = await MainActor.run {
+        let manager = HomeKitManager()
+        // ... main-actor-isolated code
+    }
+}
+```
+
+---
+
+## Snapshot Model Pattern
+
+### Decoupling from HomeKit with Value Types
+
+Create simple structs to hold HomeKit data, decoupled from the framework:
+
+```swift
+/// Simplified representation - holds just what we need
+struct AccessoryInfo {
+    let id: UUID
+    let name: String
+    let roomId: UUID?
+    let isReachable: Bool
+    let category: String
+    
+    init(from accessory: HMAccessory, defaultRoomId: UUID?) {
+        self.id = accessory.uniqueIdentifier
+        self.name = accessory.name
+        // Treat default room as "unassigned" (nil roomId)
+        if let room = accessory.room, room.uniqueIdentifier != defaultRoomId {
+            self.roomId = room.uniqueIdentifier
+        } else {
+            self.roomId = nil
+        }
+        self.isReachable = accessory.isReachable
+        self.category = accessory.category.localizedDescription
+    }
+}
+```
+
+### Snapshot Container
+
+```swift
+struct HomeKitSnapshot {
+    let home: HomeInfo
+    let rooms: [RoomInfo]
+    let accessories: [AccessoryInfo]
+    
+    var unassignedAccessories: [AccessoryInfo] {
+        accessories.filter { $0.roomId == nil }
+    }
+    
+    var accessoriesByRoom: [UUID: [AccessoryInfo]] {
+        Dictionary(grouping: accessories.filter { $0.roomId != nil }, by: { $0.roomId! })
+    }
+}
+```
+
+---
+
+## HMHomeManagerDelegate Pattern
+
+### Proper Delegate Setup with Continuation
+
+```swift
+@MainActor
+final class HomeKitManager: NSObject {
+    private let homeManager: HMHomeManager
+    private var homesLoadedContinuation: CheckedContinuation<Void, Never>?
+    private var isReady = false
+    
+    override init() {
+        self.homeManager = HMHomeManager()
+        super.init()
+        self.homeManager.delegate = self
+    }
+    
+    func waitForHomesLoaded() async throws {
+        if isReady { return }
+        await withCheckedContinuation { continuation in
+            self.homesLoadedContinuation = continuation
+        }
+        // Check authorization after homes loaded
+        guard homeManager.authorizationStatus == .authorized else {
+            throw HomeKitError.notAuthorized
+        }
+    }
+}
+
+extension HomeKitManager: HMHomeManagerDelegate {
+    nonisolated func homeManagerDidUpdateHomes(_ manager: HMHomeManager) {
+        Task { @MainActor in
+            self.isReady = true
+            self.homesLoadedContinuation?.resume()
+            self.homesLoadedContinuation = nil
+        }
+    }
+}
+```
+
+Key points:
+- Mark delegate methods `nonisolated` then dispatch to `@MainActor` via Task
+- Store continuation to bridge callback to async/await
+- Check `isReady` flag to avoid waiting if already loaded
+
+---
+
+## Config Parsing with Yams
+
+### Union Type Decoding (String OR Object)
+
+For YAML like:
+```yaml
+accessories:
+  - "Exact Name"           # String
+  - pattern: "Living *"    # Object with pattern key
+```
+
+Use enum with custom decoder:
+
+```swift
+enum AccessorySelector: Codable {
+    case exact(String)
+    case pattern(String)
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        
+        // Try string first (exact match)
+        if let exactName = try? container.decode(String.self) {
+            self = .exact(exactName)
+            return
+        }
+        
+        // Try object with pattern key
+        let patternContainer = try decoder.container(keyedBy: PatternCodingKeys.self)
+        if let pattern = try? patternContainer.decode(String.self, forKey: .pattern) {
+            self = .pattern(pattern)
+            return
+        }
+        
+        throw DecodingError.dataCorruptedError(
+            in: container,
+            debugDescription: "Must be string or object with 'pattern' key"
+        )
+    }
+    
+    private enum PatternCodingKeys: String, CodingKey {
+        case pattern
+    }
+}
+```
+
+### Validation with Aggregated Errors
+
+Collect all errors instead of failing fast:
+
+```swift
+struct ConfigValidator {
+    static func validate(_ config: Config) -> ValidationResult {
+        var errors: [ConfigValidationError] = []
+        var warnings: [String] = []
+        
+        // Validate each section, collecting all errors
+        if let rooms = config.rooms {
+            errors.append(contentsOf: validateRooms(rooms))
+        }
+        
+        if errors.isEmpty {
+            return .valid
+        }
+        return .invalid(errors, warnings: warnings)
+    }
+}
+```
+
+### Pretty-Print Config for Debugging
+
+```swift
+static func dump(_ config: Config) -> String {
+    var output: [String] = []
+    output.append("=== Configuration ===")
+    
+    if let rooms = config.rooms {
+        output.append("\n--- Rooms (\(rooms.count)) ---")
+        for room in rooms {
+            output.append("  \(room.name):")
+            // ...
+        }
+    }
+    
+    return output.joined(separator: "\n")
+}
+```

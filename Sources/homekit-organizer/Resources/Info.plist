@@ -2,15 +2,27 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleIdentifier</key>
-    <string>com.homekit-organizer.cli</string>
-    <key>CFBundleName</key>
-    <string>HomeKit Organizer</string>
-    <key>CFBundleVersion</key>
-    <string>0.1.0</string>
-    <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
-    <key>NSHomeKitUsageDescription</key>
-    <string>HomeKit Organizer needs access to organize your smart home devices into rooms, rename accessories, and create scenes.</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.homekit-organizer.cli</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>HomeKit Organizer</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>0.1.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHomeKitUsageDescription</key>
+	<string>HomeKit Organizer needs access to organize your smart home devices into rooms, rename accessories, and create scenes.</string>
 </dict>
 </plist>

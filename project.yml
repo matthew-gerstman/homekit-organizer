@@ -1,0 +1,50 @@
+name: HomeKitOrganizer
+options:
+  bundleIdPrefix: com.homekit-organizer
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "15.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    ENABLE_HARDENED_RUNTIME: YES
+    CODE_SIGN_ENTITLEMENTS: homekit-organizer.entitlements
+    SUPPORTS_MACCATALYST: YES
+    DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER: NO
+
+packages:
+  Yams:
+    url: https://github.com/jpsim/Yams.git
+    from: "5.0.0"
+  swift-argument-parser:
+    url: https://github.com/apple/swift-argument-parser.git
+    from: "1.2.0"
+
+targets:
+  homekit-organizer:
+    type: application
+    platform: iOS
+    deploymentTarget:
+      iOS: "17.0"
+    sources:
+      - Sources/homekit-organizer
+      - path: Sources/homekit-organizer/Resources
+        excludes:
+          - "*.plist"
+    dependencies:
+      - package: Yams
+      - package: swift-argument-parser
+        product: ArgumentParser
+      - sdk: HomeKit.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.homekit-organizer.cli
+        PRODUCT_NAME: homekit-organizer
+        INFOPLIST_FILE: Sources/homekit-organizer/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: homekit-organizer.entitlements
+        SUPPORTS_MACCATALYST: YES
+        # Make it a background app (no dock icon)
+        LSUIElement: true
+        # Parse as library for @main support
+        OTHER_SWIFT_FLAGS: "-parse-as-library"
