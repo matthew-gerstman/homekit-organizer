@@ -1,0 +1,76 @@
+# HomeKit Organizer Configuration
+# This file defines how to organize your Home Assistant devices in Apple HomeKit
+
+# Target home (optional - uses primary home if not specified)
+home: "My Home"
+
+# Room definitions and accessory assignments
+rooms:
+  - name: "Living Room"
+    accessories:
+      - "Living Room Lamp"           # Exact match
+      - pattern: "Living Room *"     # Wildcard match
+      - pattern: "^LR_.*"            # Regex match
+    
+  - name: "Kitchen"
+    accessories:
+      - "Kitchen Overhead"
+      - "Coffee Maker"
+      - "Kitchen Motion Sensor"
+
+  - name: "Bedroom"
+    accessories:
+      - pattern: "Bedroom *"
+
+  - name: "Office"
+    accessories:
+      - "Desk Lamp"
+      - "Monitor Light"
+      - pattern: "Office *"
+
+# Optional: Rename accessories (useful for cleaning up HA entity names)
+renames:
+  - from: "light.living_room_lamp_1"
+    to: "Living Room Lamp"
+  - from: "switch.coffee_maker"
+    to: "Coffee Maker"
+  - from: "light.hue_color_lamp_1"
+    to: "Desk Lamp"
+
+# Optional: Scene definitions
+scenes:
+  - name: "Movie Night"
+    actions:
+      - accessory: "Living Room Lamp"
+        service: "lightbulb"
+        characteristics:
+          brightness: 20
+          on: true
+      - accessory: "TV Backlight"
+        service: "lightbulb"
+        characteristics:
+          on: true
+          
+  - name: "Good Morning"
+    actions:
+      - accessory: "Bedroom Light"
+        service: "lightbulb"
+        characteristics:
+          brightness: 100
+          on: true
+      - accessory: "Coffee Maker"
+        service: "switch"
+        characteristics:
+          on: true
+
+  - name: "Focus Mode"
+    actions:
+      - accessory: "Desk Lamp"
+        service: "lightbulb"
+        characteristics:
+          brightness: 80
+          on: true
+      - accessory: "Monitor Light"
+        service: "lightbulb"
+        characteristics:
+          on: true

@@ -1,0 +1,25 @@
+# Build artifacts
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj
+*.xcworkspace
+
+# macOS
+.DS_Store
+*.dSYM
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Signing (keep templates, ignore actual certs)
+*.p12
+*.mobileprovision
+*.cer
+
+# Local config (users should copy from sample)
+config.yaml
+!Examples/sample-config.yaml
