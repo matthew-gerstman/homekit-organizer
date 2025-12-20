@@ -2,6 +2,8 @@
 
 A macOS CLI tool that programmatically organizes Home Assistant devices exposed to Apple HomeKit.
 
+> **🤖 Agent Note**: This project is managed via the implementation plan in Obvious. If you're an AI agent picking this up, check the **HomeKit Organizer CLI - Implementation Plan** document for current status, milestone details, and handoff protocol. Continue from the next incomplete milestone.
+
 ## The Problem
 
 Home Assistant's HomeKit Bridge integration exposes entities to Apple Home, but all devices land in the "Default Room" with no way to:
@@ -30,7 +32,7 @@ This tool reads a YAML configuration file and uses Apple's native HomeKit framew
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/homekit-organizer.git
+git clone https://github.com/matthew-gerstman/homekit-organizer.git
 cd homekit-organizer
 swift build -c release
 ```
@@ -95,18 +97,20 @@ scenes:
 
 ## Development Status
 
-This project is under active development. See the implementation plan for milestone details.
+This project follows a milestone-based development plan. See the implementation plan document for full details.
 
 | Milestone | Status | Description |
 |-----------|--------|-------------|
 | M1 | ✅ Complete | Project scaffolding |
-| M2 | 🔲 Pending | HomeKit manager & listing |
-| M3 | 🔲 Pending | Config parsing |
-| M4 | 🔲 Pending | Room creation & assignment |
-| M5 | 🔲 Pending | Pattern matching |
-| M6 | 🔲 Pending | Scene creation |
-| M7 | 🔲 Pending | CLI polish |
-| M8 | 🔲 Pending | Distribution |
+| M2 | 🔲 Ready | HomeKit manager & listing |
+| M3 | 🔲 Ready | Config parsing |
+| M4 | ⏳ Blocked | Room creation & assignment |
+| M5 | ⏳ Blocked | Pattern matching |
+| M6 | ⏳ Blocked | Scene creation |
+| M7 | ⏳ Blocked | CLI polish |
+| M8 | ⏳ Blocked | Distribution |
+
+**Note**: M2 and M3 can be developed in parallel. M4+ require their dependencies.
 
 ## Code Signing
 
