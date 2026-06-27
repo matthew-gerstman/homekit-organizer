@@ -9,8 +9,9 @@ struct Planner {
     /// - Parameters:
     ///   - config: The desired configuration
     ///   - snapshot: Current HomeKit state
+    ///   - deleteUnlistedRooms: If true, delete rooms not in config
     /// - Returns: Plan of operations to execute
-    static func plan(config: Config, snapshot: HomeKitSnapshot) -> OperationPlan {
+    static func plan(config: Config, snapshot: HomeKitSnapshot, deleteUnlistedRooms: Bool = false) -> OperationPlan {
         var operations: [Operation] = []
         var skipped: [SkippedOperation] = []
         var warnings: [String] = []
@@ -26,7 +27,41 @@ struct Planner {
             uniquingKeysWith: { first, _ in first }
         )
         
-        // 1. Plan rename operations (first, so subsequent matching uses new names)
+        // Get set of room names from config (exact match for deletion, case-insensitive for creation)
+        let configRoomNamesExact = Set((config.rooms ?? []).map { $0.name })
+        let configRoomNamesLower = Set((config.rooms ?? []).map { $0.name.lowercased() })
+        
+        // 0. Plan room deletions (if enabled)
+        if deleteUnlistedRooms {
+            for room in snapshot.rooms {
+                // Skip default room (can't be deleted)
+                if room.isDefault { continue }
+                
+                // If room name doesn't EXACTLY match a config room, delete it
+                // This handles duplicates like "Guest Room" vs "Guest room"
+                if !configRoomNamesExact.contains(room.name) {
+                    operations.append(.deleteRoom(roomId: room.id, name: room.name))
+                }
+            }
+        }
+        
+        // 1. Plan accessory removals
+        if let removeSelectors = config.remove {
+            for selector in removeSelectors {
+                let matchResult = AccessoryMatcher.match(selector: selector, against: snapshot.accessories)
+                
+                if !matchResult.hasMatches {
+                    warnings.append("No accessories matched for removal: \(selector.description)")
+                    continue
+                }
+                
+                for accessory in matchResult.matchedAccessories {
+                    operations.append(.removeAccessory(accessoryId: accessory.id, name: accessory.name))
+                }
+            }
+        }
+        
+        // 2. Plan rename operations (so subsequent matching uses new names)
         if let renames = config.renames {
             for rename in renames {
                 if let accessory = accessoriesByName[rename.from.lowercased()] {
@@ -88,7 +123,75 @@ struct Planner {
             }
         }
         
-        // 3. Plan scene operations
+        // 3. Plan zone operations
+        if let zones = config.zones {
+            // Build lookup for existing zones
+            let existingZones = Dictionary(
+                snapshot.zones.map { ($0.name.lowercased(), $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            
+            // Get set of zone names from config
+            let configZoneNames = Set(zones.map { $0.name.lowercased() })
+            
+            // Plan zone deletions (zones not in config)
+            for zone in snapshot.zones {
+                if !configZoneNames.contains(zone.name.lowercased()) {
+                    operations.append(.deleteZone(zoneId: zone.id, name: zone.name))
+                }
+            }
+            
+            for zoneConfig in zones {
+                let zoneNameLower = zoneConfig.name.lowercased()
+                
+                // Check if zone exists
+                if existingZones[zoneNameLower] == nil {
+                    operations.append(.createZone(name: zoneConfig.name))
+                } else {
+                    skipped.append(SkippedOperation(
+                        reason: "Zone exists",
+                        detail: "'\(zoneConfig.name)'"
+                    ))
+                }
+                
+                // Plan room assignments to zone
+                if let roomNames = zoneConfig.rooms {
+                    let existingZone = existingZones[zoneNameLower]
+                    let existingRoomNamesInZone = Set(existingZone?.roomNames.map { $0.lowercased() } ?? [])
+                    
+                    for roomName in roomNames {
+                        // Check if room is already in zone
+                        if existingRoomNamesInZone.contains(roomName.lowercased()) {
+                            skipped.append(SkippedOperation(
+                                reason: "Room already in zone",
+                                detail: "'\(roomName)' in '\(zoneConfig.name)'"
+                            ))
+                        } else if existingRooms[roomName.lowercased()] != nil {
+                            operations.append(.addRoomToZone(roomName: roomName, zoneName: zoneConfig.name))
+                        } else {
+                            warnings.append("Room '\(roomName)' not found for zone '\(zoneConfig.name)'")
+                        }
+                    }
+                    
+                    // Plan room removals from zone (rooms in zone but not in config)
+                    if let existingZone = existingZone {
+                        let configRoomNamesLower = Set(roomNames.map { $0.lowercased() })
+                        for (index, roomName) in existingZone.roomNames.enumerated() {
+                            if !configRoomNamesLower.contains(roomName.lowercased()) {
+                                operations.append(.removeRoomFromZone(
+                                    roomId: existingZone.roomIds[index],
+                                    roomName: roomName,
+                                    zoneId: existingZone.id,
+                                    zoneName: existingZone.name
+                                ))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 4. Plan scene operations
         if let scenes = config.scenes {
             let existingScenes = Set(snapshot.home.name.lowercased()) // TODO: Get actual scenes from snapshot
             

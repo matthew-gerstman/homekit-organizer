@@ -7,6 +7,24 @@ enum Operation: CustomStringConvertible {
     /// Create a new room
     case createRoom(name: String)
     
+    /// Delete an existing room
+    case deleteRoom(roomId: UUID, name: String)
+    
+    /// Create a new zone
+    case createZone(name: String)
+    
+    /// Delete an existing zone
+    case deleteZone(zoneId: UUID, name: String)
+    
+    /// Add a room to a zone
+    case addRoomToZone(roomName: String, zoneName: String)
+    
+    /// Remove a room from a zone
+    case removeRoomFromZone(roomId: UUID, roomName: String, zoneId: UUID, zoneName: String)
+    
+    /// Remove an accessory from HomeKit
+    case removeAccessory(accessoryId: UUID, name: String)
+    
     /// Assign an accessory to a room
     case assignAccessory(accessoryId: UUID, accessoryName: String, toRoom: String)
     
@@ -24,6 +42,18 @@ enum Operation: CustomStringConvertible {
         switch self {
         case .createRoom(let name):
             return "Create room '\(name)'"
+        case .deleteRoom(_, let name):
+            return "Delete room '\(name)'"
+        case .createZone(let name):
+            return "Create zone '\(name)'"
+        case .deleteZone(_, let name):
+            return "Delete zone '\(name)'"
+        case .addRoomToZone(let roomName, let zoneName):
+            return "Add room '\(roomName)' to zone '\(zoneName)'"
+        case .removeRoomFromZone(_, let roomName, _, let zoneName):
+            return "Remove room '\(roomName)' from zone '\(zoneName)'"
+        case .removeAccessory(_, let name):
+            return "Remove accessory '\(name)'"
         case .assignAccessory(_, let accessoryName, let room):
             return "Assign '\(accessoryName)' to '\(room)'"
         case .renameAccessory(_, let from, let to):
@@ -39,7 +69,12 @@ enum Operation: CustomStringConvertible {
     /// Category for grouping in output
     var category: OperationCategory {
         switch self {
+        case .removeAccessory: return .accessoryRemove
+        case .deleteRoom: return .roomDelete
         case .createRoom: return .room
+        case .deleteZone: return .zoneDelete
+        case .createZone: return .zone
+        case .addRoomToZone, .removeRoomFromZone: return .zoneAssignment
         case .assignAccessory: return .assignment
         case .renameAccessory: return .rename
         case .createScene, .addSceneAction: return .scene
@@ -48,17 +83,27 @@ enum Operation: CustomStringConvertible {
 }
 
 enum OperationCategory: String, CaseIterable {
+    case accessoryRemove = "Remove Accessories"
     case rename = "Renames"
-    case room = "Rooms"
+    case roomDelete = "Delete Rooms"
+    case room = "Create Rooms"
+    case zoneDelete = "Delete Zones"
+    case zone = "Create Zones"
+    case zoneAssignment = "Zone Assignments"
     case assignment = "Assignments"
     case scene = "Scenes"
     
     var order: Int {
         switch self {
-        case .rename: return 0      // Renames first so matching works
-        case .room: return 1        // Create rooms before assigning
-        case .assignment: return 2  // Assign accessories
-        case .scene: return 3       // Scenes last
+        case .accessoryRemove: return 0  // Remove accessories first
+        case .rename: return 1           // Renames so matching works
+        case .roomDelete: return 2       // Delete rooms before creating new ones
+        case .room: return 3             // Create rooms before assigning
+        case .zoneDelete: return 4       // Delete zones
+        case .zone: return 5             // Create zones after rooms exist
+        case .zoneAssignment: return 6   // Assign rooms to zones
+        case .assignment: return 7       // Assign accessories
+        case .scene: return 8            // Scenes last
         }
     }
 }

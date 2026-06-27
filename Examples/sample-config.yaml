@@ -28,6 +28,18 @@ rooms:
       - "Monitor Light"
       - pattern: "Office *"
 
+# Optional: Zones group rooms together for easier control
+# e.g., "Hey Siri, turn off the lights downstairs"
+zones:
+  - name: "Downstairs"
+    rooms:
+      - "Living Room"
+      - "Kitchen"
+  - name: "Upstairs"
+    rooms:
+      - "Bedroom"
+      - "Office"
+
 # Optional: Rename accessories (useful for cleaning up HA entity names)
 renames:
   - from: "light.living_room_lamp_1"

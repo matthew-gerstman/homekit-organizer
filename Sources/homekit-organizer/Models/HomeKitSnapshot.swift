@@ -7,6 +7,7 @@ import HomeKit
 struct HomeKitSnapshot {
     let home: HomeInfo
     let rooms: [RoomInfo]
+    let zones: [ZoneInfo]
     let accessories: [AccessoryInfo]
     
     /// Accessories that are in the "default room" (unassigned)
@@ -45,6 +46,21 @@ struct RoomInfo {
         self.name = room.name
         self.homeId = homeId
         self.isDefault = isDefault
+    }
+}
+
+/// Simplified representation of an HMZone
+struct ZoneInfo {
+    let id: UUID
+    let name: String
+    let roomIds: [UUID]
+    let roomNames: [String]
+    
+    init(from zone: HMZone) {
+        self.id = zone.uniqueIdentifier
+        self.name = zone.name
+        self.roomIds = zone.rooms.map { $0.uniqueIdentifier }
+        self.roomNames = zone.rooms.map { $0.name }
     }
 }
 

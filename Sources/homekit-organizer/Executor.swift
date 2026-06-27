@@ -48,6 +48,24 @@ final class Executor {
             case .createRoom(let name):
                 try await executeCreateRoom(name: name)
                 
+            case .deleteRoom(let roomId, _):
+                try await executeDeleteRoom(roomId: roomId)
+                
+            case .createZone(let name):
+                try await executeCreateZone(name: name)
+                
+            case .deleteZone(let zoneId, _):
+                try await executeDeleteZone(zoneId: zoneId)
+                
+            case .addRoomToZone(let roomName, let zoneName):
+                try await executeAddRoomToZone(roomName: roomName, zoneName: zoneName)
+                
+            case .removeRoomFromZone(let roomId, _, let zoneId, _):
+                try await executeRemoveRoomFromZone(roomId: roomId, zoneId: zoneId)
+                
+            case .removeAccessory(let accessoryId, _):
+                try await executeRemoveAccessory(accessoryId: accessoryId)
+                
             case .assignAccessory(let accessoryId, _, let roomName):
                 try await executeAssignAccessory(accessoryId: accessoryId, toRoom: roomName)
                 
@@ -83,25 +101,109 @@ final class Executor {
         _ = try await manager.createRoom(named: name, in: home)
     }
     
+    private func executeDeleteRoom(roomId: UUID) async throws {
+        guard let room = home.rooms.first(where: { $0.uniqueIdentifier == roomId }) else {
+            return // Room doesn't exist anymore, skip
+        }
+        
+        try await manager.deleteRoom(room, in: home)
+    }
+    
+    private func executeCreateZone(name: String) async throws {
+        // Check if zone already exists (idempotent)
+        if manager.getZone(named: name, in: home) != nil {
+            return // Already exists, skip
+        }
+        
+        _ = try await manager.createZone(named: name, in: home)
+    }
+    
+    private func executeDeleteZone(zoneId: UUID) async throws {
+        guard let zone = manager.getZone(id: zoneId, in: home) else {
+            return // Zone doesn't exist anymore, skip
+        }
+        
+        try await manager.deleteZone(zone, in: home)
+    }
+    
+    private func executeAddRoomToZone(roomName: String, zoneName: String) async throws {
+        // Get or create the zone
+        let zone: HMZone
+        if let existingZone = manager.getZone(named: zoneName, in: home) {
+            zone = existingZone
+        } else {
+            zone = try await manager.createZone(named: zoneName, in: home)
+        }
+        
+        // Get the room
+        guard let room = manager.getRoom(named: roomName, in: home) else {
+            throw HomeKitError.roomNotFound(roomName)
+        }
+        
+        // Check if already in zone (idempotent)
+        if zone.rooms.contains(where: { $0.uniqueIdentifier == room.uniqueIdentifier }) {
+            return // Already in zone
+        }
+        
+        try await manager.addRoom(room, to: zone)
+    }
+    
+    private func executeRemoveRoomFromZone(roomId: UUID, zoneId: UUID) async throws {
+        guard let zone = manager.getZone(id: zoneId, in: home) else {
+            return // Zone doesn't exist anymore, skip
+        }
+        
+        guard let room = home.rooms.first(where: { $0.uniqueIdentifier == roomId }) else {
+            return // Room doesn't exist anymore, skip
+        }
+        
+        // Check if still in zone
+        guard zone.rooms.contains(where: { $0.uniqueIdentifier == roomId }) else {
+            return // Already removed
+        }
+        
+        try await manager.removeRoom(room, from: zone)
+    }
+    
+    private func executeRemoveAccessory(accessoryId: UUID) async throws {
+        guard let accessory = manager.getAccessory(id: accessoryId, in: home) else {
+            return // Accessory doesn't exist anymore, skip
+        }
+        
+        try await manager.removeAccessory(accessory, from: home)
+    }
+    
     private func executeAssignAccessory(accessoryId: UUID, toRoom roomName: String) async throws {
+        print("[DEBUG] Looking for accessory ID: \(accessoryId)")
         guard let accessory = manager.getAccessory(id: accessoryId, in: home) else {
             throw HomeKitError.accessoryNotFound("ID: \(accessoryId)")
         }
+        print("[DEBUG] Found accessory: '\(accessory.name)', reachable: \(accessory.isReachable), blocked: \(accessory.isBlocked)")
         
         // Get or create the room
         let room: HMRoom
-        if let existingRoom = manager.getRoom(named: roomName, in: home) {
+        
+        // Special handling for Default Room - use the home's built-in default room
+        if roomName.lowercased() == "default room" {
+            room = home.roomForEntireHome()
+            print("[DEBUG] Using home's default room: '\(room.name)'")
+        } else if let existingRoom = manager.getRoom(named: roomName, in: home) {
+            print("[DEBUG] Found existing room: '\(existingRoom.name)'")
             room = existingRoom
         } else {
+            print("[DEBUG] Creating new room: '\(roomName)'")
             room = try await manager.createRoom(named: roomName, in: home)
         }
         
         // Check if already in correct room (idempotent)
         if accessory.room?.uniqueIdentifier == room.uniqueIdentifier {
+            print("[DEBUG] Already in correct room")
             return // Already assigned
         }
         
+        print("[DEBUG] Assigning '\(accessory.name)' to '\(room.name)'...")
         try await manager.assignAccessory(accessory, to: room, in: home)
+        print("[DEBUG] Assignment complete")
     }
     
     private func executeRenameAccessory(accessoryId: UUID, to newName: String) async throws {

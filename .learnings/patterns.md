@@ -4,6 +4,67 @@
 
 ---
 
+## 🚨 CRITICAL: Running HomeKit Commands
+
+**HomeKit write operations ONLY work on actual iOS devices (iPhone/iPad).**
+Mac Catalyst and "Designed for iPad" on Mac are READ-ONLY for third-party apps.
+
+### Quick Start for AI Agents
+
+To execute HomeKit commands for the user:
+
+1. **Edit `config.yaml`** in the project root with the desired operations
+2. **Rebuild**: `xcodebuild -project HomeKitOrganizer.xcodeproj -scheme homekit-organizer -destination 'generic/platform=iOS' -allowProvisioningUpdates build`
+3. **Tell user to run on iPhone** via Xcode (`Cmd+R` with iPhone selected as destination)
+
+### Config Format
+
+```yaml
+home: Syracuse  # Home name
+
+# Rooms to keep (all others deleted if deleteUnlisted=true)
+rooms:
+  - name: "Bedroom"
+  - name: "Living Room"
+  - name: "Office"
+
+# Accessories to remove from HomeKit entirely
+remove:
+  - "Camera Name"
+  - pattern: "Front*"  # Wildcard pattern
+
+# Accessories to assign to rooms
+rooms:
+  - name: "Bedroom"
+    accessories:
+      - "Bedroom Light"
+      - pattern: "Bedroom*"
+
+# Rename accessories
+renames:
+  - from: "old_name"
+    to: "New Name"
+```
+
+### Available Operations
+
+| Operation | Config Section | Description |
+|-----------|---------------|-------------|
+| Create room | `rooms: - name: "X"` | Creates room if doesn't exist |
+| Delete room | (automatic) | Rooms not in config are deleted when `deleteUnlisted=true` |
+| Remove accessory | `remove: - "Name"` | Removes accessory from HomeKit |
+| Assign accessory | `rooms: - accessories:` | Moves accessory to room |
+| Rename accessory | `renames:` | Renames accessory |
+
+### Name Rules
+
+- Room/accessory names **must start with letter or number**
+- NO leading underscores, dashes, or special characters
+- ❌ `_TestRoom` → HMError 36
+- ✅ `TestRoom` → Works
+
+---
+
 ## HomeKit Patterns
 
 ### Wrapping Completion Handlers with async/await

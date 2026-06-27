@@ -1,181 +1,195 @@
 # Agent Instructions for homekit-organizer
 
-> **TL;DR**: Swift CLI for HomeKit automation. Check `PLAN.md` for milestones. Log mistakes in `.learnings/mistakes.md`. Update this file when you learn something important.
+> **TL;DR**: iOS app to programmatically organize HomeKit. **MUST run on iPhone/iPad** - Mac doesn't support writes. Edit `config.yaml`, rebuild, tell user to run on their phone.
 
-## Quick Start
+## 🚨 CRITICAL: HomeKit Write Limitations
 
-```bash
-# Build
-swift build
+**HomeKit write operations ONLY work on actual iOS devices (iPhone/iPad).**
 
-# Run
-swift run homekit-organizer
+| Platform | Read | Write |
+|----------|------|-------|
+| iPhone/iPad | ✅ | ✅ |
+| Mac Catalyst | ✅ | ❌ (Error 2: "Request not handled") |
+| Mac "Designed for iPad" | ✅ | ❌ (Same error) |
+| iOS Simulator | ❌ | ❌ |
 
-# Test (when tests exist)
-swift test
+## Quick Start: Executing HomeKit Commands
+
+When the user asks you to modify their HomeKit setup:
+
+### Step 1: Edit config.yaml
+
+```yaml
+home: Syracuse  # User's home name
+
+# Rooms to keep (all unlisted rooms will be DELETED)
+rooms:
+  - name: "Bedroom"
+  - name: "Living Room"
+  - name: "Office"
+
+# Accessories to REMOVE from HomeKit
+remove:
+  - "Camera Name"
+  - pattern: "Front*"
+
+# Accessories to ASSIGN to rooms (optional)
+rooms:
+  - name: "Bedroom"
+    accessories:
+      - "Bedroom Light"
+      - pattern: "Bedroom*"
 ```
 
-## Project Overview
+### Step 2: Rebuild
 
-**What**: macOS CLI tool to programmatically organize Home Assistant devices exposed to Apple HomeKit.
+```bash
+cd /Users/matthew/src/homekit-organizer
+xcodebuild -project HomeKitOrganizer.xcodeproj \
+  -scheme homekit-organizer \
+  -destination 'generic/platform=iOS' \
+  -allowProvisioningUpdates build
+```
 
-**Why**: Home Assistant's HomeKit Bridge dumps all devices into "Default Room" with no bulk organization. This tool reads YAML configs and uses Apple's native HomeKit framework to organize accessories into rooms, rename them, and create scenes.
+### Step 3: Tell User to Run on iPhone
 
-**Stack**:
-- Swift 5.9+ / Swift Package Manager
-- macOS 13.0+ (Ventura) required
-- Dependencies: [Yams](https://github.com/jpsim/Yams) (YAML), [ArgumentParser](https://github.com/apple/swift-argument-parser) (CLI)
-- Native: HomeKit.framework (HMHomeManager)
+Say: "Run on your iPhone (`Cmd+R` in Xcode with your phone selected as destination)"
+
+The app will automatically apply the bundled config.yaml.
+
+## Config Reference
+
+### Operations
+
+| What | Config | Example |
+|------|--------|---------|
+| Keep specific rooms (delete others) | `rooms:` list | `rooms: [{name: "Bedroom"}, {name: "Office"}]` |
+| Create zones (room groups) | `zones:` list | `zones: [{name: "Upstairs", rooms: ["Bedroom", "Office"]}]` |
+| Remove accessory | `remove:` | `remove: ["Camera 1", {pattern: "Front*"}]` |
+| Assign accessory to room | `rooms.[].accessories` | See below |
+| Rename accessory | `renames:` | `renames: [{from: "old", to: "new"}]` |
+
+### Patterns
+
+```yaml
+# Exact match
+- "Living Room Light"
+
+# Wildcard (matches any substring)
+- pattern: "Bedroom*"      # Starts with Bedroom
+- pattern: "*Light"        # Ends with Light
+- pattern: "*Room*"        # Contains Room
+
+# Regex (starts with ^ or ends with $)
+- pattern: "^LR_.*"        # Regex: starts with LR_
+```
+
+### Full Example
+
+```yaml
+home: Syracuse
+
+rooms:
+  - name: "Bedroom"
+    accessories:
+      - "Bedroom Ceiling"
+      - pattern: "Bedroom*"
+  - name: "Living Room"
+  - name: "Office"
+  - name: "Kitchen"
+
+# Zones group rooms together for easier control
+# e.g., "Hey Siri, turn off the lights upstairs"
+zones:
+  - name: "Upstairs"
+    rooms:
+      - "Bedroom"
+      - "Office"
+  - name: "Downstairs"
+    rooms:
+      - "Living Room"
+      - "Kitchen"
+
+remove:
+  - pattern: "*Camera*"
+  - "Front Door"
+
+renames:
+  - from: "light.living_room_1"
+    to: "Living Room Lamp"
+```
+
+## Name Rules
+
+⚠️ **HomeKit names must start with a letter or number**
+
+- ❌ `_TestRoom` → HMError 36 (invalid characters)
+- ❌ `-MyRoom` → HMError 36
+- ✅ `TestRoom` → Works
+- ✅ `Room 1` → Works
 
 ## Project Structure
 
 ```
 homekit-organizer/
-├── Package.swift              # SPM manifest - dependencies & targets
+├── config.yaml                    # 👈 EDIT THIS for operations
+├── project.yml                    # xcodegen config
 ├── Sources/homekit-organizer/
-│   └── main.swift             # Entry point (currently just prints version)
-├── Examples/
-│   └── sample-config.yaml     # Reference config format
-├── PLAN.md                    # 📋 IMPLEMENTATION PLAN - check this first!
-├── AGENTS.md                  # 📖 You are here
-├── .learnings/                # 🧠 Accumulated knowledge (append-only)
-│   ├── mistakes.md            # Things that went wrong and how to prevent
-│   ├── decisions.md           # Architecture/design decisions with rationale
-│   └── patterns.md            # Working patterns discovered
-└── homekit-organizer.entitlements  # Required for HomeKit access
+│   ├── main.swift                 # CLI entry point
+│   ├── HomeKitManager.swift       # HomeKit API wrapper
+│   ├── Planner.swift              # Generates operation plan
+│   ├── Executor.swift             # Executes operations
+│   ├── ConfigParser.swift         # YAML parsing
+│   └── Models/
+│       ├── Config.swift           # Config data model
+│       └── Operation.swift        # Operation types
+├── .learnings/
+│   ├── mistakes.md                # Past errors to avoid
+│   ├── patterns.md                # Working patterns
+│   └── decisions.md               # Architecture decisions
+└── homekit-organizer.entitlements # HomeKit permission
 ```
 
-## Current Status
+## Common Tasks
 
-**Read `PLAN.md` for the authoritative milestone status.**
+### List current HomeKit state
+User must run `list homes`, `list rooms`, or `list accessories` commands on their phone.
+These are CLI subcommands - set them as launch arguments in Xcode scheme.
 
-Quick reference:
-- ✅ M1: Project scaffolding (complete)
-- 🔲 M2: HomeKit manager & listing (ready - can start)
-- 🔲 M3: Config parsing (ready - can start, parallel with M2)
-- ⏳ M4-M8: Blocked on M2/M3
+### Check what the app will do
+Add `--dry-run` flag or just review the plan output in console.
 
-## How to Work on This Project
+### Debug issues
+The app prints `[DEBUG]` lines showing exactly what's happening.
 
-### Before Starting Any Milestone
+## Error Codes
 
-1. **Read `PLAN.md`** - Full specs, acceptance criteria, and dependencies
-2. **Check `.learnings/mistakes.md`** - Don't repeat past errors
-3. **Check `.learnings/decisions.md`** - Understand why things are the way they are
+| Code | Domain | Meaning |
+|------|--------|---------|
+| 2 | HMErrorDomain | "Request not handled" - Mac limitation, run on iPhone |
+| 36 | HMErrorDomain | Invalid name (starts with special char) |
+| 6 | HMErrorDomain | "Not found" - Home hub unreachable |
 
-### Development Workflow
+## Development
 
 ```bash
-# Always verify it compiles before committing
-swift build
+# Regenerate Xcode project after changing project.yml
+xcodegen generate
 
-# Run to verify basic functionality
-swift run homekit-organizer
-
-# Check for Swift warnings
-swift build 2>&1 | grep -i warning
+# Build for iOS
+xcodebuild -project HomeKitOrganizer.xcodeproj \
+  -scheme homekit-organizer \
+  -destination 'generic/platform=iOS' \
+  -allowProvisioningUpdates build
 ```
 
-### HomeKit-Specific Gotchas
+## Learnings
 
-⚠️ **These are critical - HomeKit is finicky:**
-
-1. **Entitlements Required**: The app must be signed with `com.apple.developer.homekit` entitlement
-2. **iCloud Required**: HomeKit syncs via iCloud - must be signed in
-3. **Async Everything**: All HMHomeManager operations use completion handlers - wrap with `withCheckedContinuation`
-4. **First Run**: User must grant HomeKit permission via system dialog
-5. **Simulator Limitations**: Use HomeKit Accessory Simulator from Xcode Additional Tools for testing
-
-### File Naming Conventions
-
-- `*Manager.swift` - Wrapper classes for system frameworks
-- `*Parser.swift` - Input parsing logic
-- `*Builder.swift` - Construction/creation logic
-- `Models/*.swift` - Data structures
-
-## Completing Work
-
-### When You Finish a Milestone
-
-1. **Update `PLAN.md`**:
-   - Change status to ✅ Complete
-   - Add completion date
-   - Add "Completion Notes" subsection with:
-     - Summary of work
-     - Key files created/modified
-     - Commit hash
-     - Any deviations from plan
-
-2. **Update `.learnings/`** if you discovered:
-   - A mistake worth preventing → `.learnings/mistakes.md`
-   - A design decision worth documenting → `.learnings/decisions.md`
-   - A useful pattern → `.learnings/patterns.md`
-
-3. **Update this file** if:
-   - Project structure changed
-   - New commands needed
-   - New gotchas discovered
-
-### Commit Message Format
-
-```
-M{N}: {Brief description}
-
-- {What was done}
-- {Key files changed}
-
-Closes #{issue} (if applicable)
-```
-
-Example:
-```
-M2: Implement HomeKit manager and accessory listing
-
-- Add HomeKitManager.swift with async/await wrappers
-- Implement list homes/rooms/accessories commands
-- Handle authorization flow
-
-Acceptance criteria verified:
-- [x] HMHomeManager initializes
-- [x] Lists all homes, rooms, accessories
-```
-
-## When You're Stuck
-
-1. **Check `.learnings/mistakes.md`** - Someone may have hit this before
-2. **Check Apple's HomeKit docs**: https://developer.apple.com/documentation/homekit
-3. **Flag blockers clearly** - Add to `PLAN.md` under the milestone with:
-   - What you tried
-   - What failed
-   - What decision is needed
-
-## Self-Learning Protocol
-
-This repo learns from mistakes. **Always update `.learnings/` when something goes wrong.**
-
-### Adding a Mistake
-
-```markdown
-## YYYY-MM-DD: {Brief title}
-
-**What happened**: {Describe the failure}
-**Root cause**: {Why it happened}
-**Prevention**: {Specific rule to follow}
-**Milestone**: M{N} (if applicable)
-```
-
-### Adding a Decision
-
-```markdown
-## YYYY-MM-DD: {Decision title}
-
-**Context**: {What prompted this decision}
-**Options considered**: {What alternatives existed}
-**Decision**: {What was chosen}
-**Rationale**: {Why this option won}
-**Revisit if**: {Conditions that would change this}
-```
+Always check `.learnings/` before debugging:
+- `mistakes.md` - Known issues and solutions
+- `patterns.md` - Working code patterns
+- `decisions.md` - Why things are built this way
 
 ---
 
-*Last updated: 2024-12-20 (M1 complete)*
+*Last updated: 2024-12-22*

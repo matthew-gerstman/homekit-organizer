@@ -10,18 +10,26 @@ struct Config: Codable {
     /// Room definitions with accessory assignments
     var rooms: [RoomConfig]?
     
+    /// Zone definitions (groups of rooms)
+    var zones: [ZoneConfig]?
+    
     /// Accessory rename rules
     var renames: [RenameRule]?
     
     /// Scene definitions
     var scenes: [SceneConfig]?
     
+    /// Accessories to remove from HomeKit
+    var remove: [AccessorySelector]?
+    
     /// Whether this config has any actual content
     var isEmpty: Bool {
         let hasRooms = !(rooms?.isEmpty ?? true)
+        let hasZones = !(zones?.isEmpty ?? true)
         let hasRenames = !(renames?.isEmpty ?? true)
         let hasScenes = !(scenes?.isEmpty ?? true)
-        return !hasRooms && !hasRenames && !hasScenes
+        let hasRemove = !(remove?.isEmpty ?? true)
+        return !hasRooms && !hasZones && !hasRenames && !hasScenes && !hasRemove
     }
 }
 
@@ -105,6 +113,17 @@ enum AccessorySelector: Codable {
     }
 }
 
+// MARK: - Zone Configuration
+
+/// Configuration for a zone (group of rooms)
+struct ZoneConfig: Codable {
+    /// Zone name (will be created if doesn't exist)
+    let name: String
+    
+    /// Rooms to include in this zone
+    let rooms: [String]?
+}
+
 // MARK: - Rename Rules
 
 /// Rule for renaming an accessory
@@ -185,12 +204,20 @@ extension Config: CustomStringConvertible {
             parts.append("Rooms: \(rooms.count)")
         }
         
+        if let zones = zones, !zones.isEmpty {
+            parts.append("Zones: \(zones.count)")
+        }
+        
         if let renames = renames, !renames.isEmpty {
             parts.append("Renames: \(renames.count)")
         }
         
         if let scenes = scenes, !scenes.isEmpty {
             parts.append("Scenes: \(scenes.count)")
+        }
+        
+        if let remove = remove, !remove.isEmpty {
+            parts.append("Remove: \(remove.count)")
         }
         
         return "Config(\(parts.joined(separator: ", ")))"

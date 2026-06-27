@@ -109,6 +109,20 @@ struct ConfigParser {
             }
         }
         
+        if let zones = config.zones, !zones.isEmpty {
+            output.append("\n--- Zones (\(zones.count)) ---")
+            for zone in zones {
+                output.append("  \(zone.name):")
+                if let rooms = zone.rooms, !rooms.isEmpty {
+                    for room in rooms {
+                        output.append("    - \(room)")
+                    }
+                } else {
+                    output.append("    (no rooms)")
+                }
+            }
+        }
+        
         if let renames = config.renames, !renames.isEmpty {
             output.append("\n--- Renames (\(renames.count)) ---")
             for rename in renames {

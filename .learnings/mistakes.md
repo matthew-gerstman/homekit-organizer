@@ -4,113 +4,113 @@
 
 ---
 
-## Template
+## 🚨 CRITICAL MISTAKES (Read First!)
 
-```markdown
-## YYYY-MM-DD: {Brief title}
+### HomeKit writes FAIL on Mac - MUST use iPhone/iPad
 
-**What happened**: {Describe the failure}
-**Root cause**: {Why it happened}  
-**Prevention**: {Specific rule to follow going forward}
-**Milestone**: M{N} (if applicable)
+**What happens**: All HomeKit write operations fail with "Request not handled" (HMError code 2) on Mac, even though reads work fine.
+
+**Applies to**: Mac Catalyst AND "Designed for iPad" mode on Apple Silicon
+
+**Solution**: Run the app on an actual iPhone or iPad. Writes work fine there.
+
+**Error signature**:
+```
+Error domain: HMErrorDomain
+Error code: 2
+Error description: Request not handled.
 ```
 
 ---
 
-## Logged Mistakes
+### HomeKit names cannot start with special characters
 
-<!-- Add new mistakes above this line, newest first -->
+**What happens**: Creating room/scene fails with HMError code 36.
 
-## 2024-12-19: HomeKit is NOT a native macOS framework
+**Root cause**: Error 36 = `NameDoesNotStartWithValidCharacters`. HomeKit requires names start with letter or number.
 
-**What happened**: Tried to use `import HomeKit` in a standard SwiftPM macOS CLI tool. Build failed with "no such module 'HomeKit'".
+**Examples**:
+- ❌ `_TestRoom` → Error 36
+- ❌ `-MyRoom` → Error 36  
+- ✅ `TestRoom` → Works
+- ✅ `Room 1` → Works
 
-**Root cause**: HomeKit.framework is only available on macOS via **Mac Catalyst** (iOS apps running on Mac). It exists under `/System/iOSSupport/` path, not the regular macOS frameworks. The framework in `/System/Library/PrivateFrameworks/HomeKit.framework` has no Swift modules.
+---
+
+## Other Mistakes
+
+### 2024-12-19: HomeKit is NOT a native macOS framework
+
+**What happened**: `import HomeKit` failed in standard SwiftPM macOS CLI.
+
+**Root cause**: HomeKit.framework only available via Mac Catalyst.
 
 **Prevention**: 
-- HomeKit on macOS REQUIRES Mac Catalyst (build as iOS app with `SUPPORTS_MACCATALYST=YES`)
-- Use Xcode project (xcodegen) instead of pure SwiftPM for HomeKit builds
-- Cannot use `swift build` directly - must use `xcodebuild` with Mac Catalyst destination
-
-**Milestone**: M2
+- Build as iOS app with `SUPPORTS_MACCATALYST=YES`
+- Use xcodegen, not pure SwiftPM
+- Use `xcodebuild` not `swift build`
 
 ---
 
-## 2024-12-19: HMHomeManager.authorizationStatus is instance, not static
+### 2024-12-19: HMHomeManager.authorizationStatus is instance property
 
-**What happened**: Code `HMHomeManager.authorizationStatus` failed to compile with "instance member cannot be used on type".
+**What happened**: `HMHomeManager.authorizationStatus` compile error.
 
-**Root cause**: The `authorizationStatus` property is an instance property on `HMHomeManager`, not a static/class property. Must call it on the instance.
-
-**Prevention**: Use `homeManager.authorizationStatus` not `HMHomeManager.authorizationStatus`
-
-**Milestone**: M2
+**Prevention**: Use `homeManager.authorizationStatus` (on instance, not type)
 
 ---
 
-## 2024-12-19: @MainActor isolation requires careful handling in async CLI commands
+### 2024-12-19: @MainActor isolation in async CLI commands
 
-**What happened**: CLI command `run()` functions couldn't call `HomeKitManager` methods, getting "main actor-isolated method cannot be called from outside of the actor" errors.
+**What happened**: Can't call HomeKitManager methods from `AsyncParsableCommand.run()`.
 
-**Root cause**: `HomeKitManager` is marked `@MainActor` but `AsyncParsableCommand.run()` doesn't automatically run on main actor.
-
-**Prevention**: Either mark the command struct methods with `@MainActor` or use `await MainActor.run { }` blocks when calling main actor-isolated code.
-
-**Milestone**: M2
-
----
-
-## 2024-12-19: HMHomeManager.primaryHome is deprecated in Mac Catalyst
-
-**What happened**: Using `homeManager.primaryHome` triggered deprecation warnings: "'primaryHome' was deprecated in Mac Catalyst 16.1: No longer supported."
-
-**Root cause**: Apple deprecated the `primaryHome` property in Mac Catalyst 16.1. The property still exists but shouldn't be used.
-
-**Prevention**: 
-- Use `homeManager.homes.first` instead of `homeManager.primaryHome`
-- For display purposes, mark the first home as "primary"
-- Allow explicit home selection via config file for multi-home users
-
-**Milestone**: M2
+**Prevention**: Mark command's `run()` method with `@MainActor`:
+```swift
+@MainActor
+func run() async throws { ... }
+```
 
 ---
 
-## 2024-12-19: SwiftPM resources can't include Info.plist directly
+### 2024-12-19: HMHomeManager.primaryHome is deprecated
 
-**What happened**: Build failed with "resource 'Resources/Info.plist' in target is forbidden; Info.plist is not supported as a top-level resource file".
+**What happened**: Deprecation warning in Mac Catalyst 16.1.
 
-**Root cause**: SwiftPM has special handling for Info.plist and doesn't allow it as a regular resource.
-
-**Prevention**: 
-- For Mac Catalyst apps, don't use SPM resource bundles for Info.plist
-- Instead, use xcodegen's `INFOPLIST_FILE` setting to point to the plist
-- Remove the `resources:` section from Package.swift when using xcodegen
-
-**Milestone**: M2
+**Prevention**: Use `homeManager.homes.first` instead.
 
 ---
 
-## 2024-12-19: @main requires -parse-as-library flag with xcodebuild
+### 2024-12-19: @main requires -parse-as-library with xcodebuild
 
-**What happened**: Build failed with "'main' attribute cannot be used in a module that contains top-level code".
+**What happened**: Build failed with "main attribute cannot be used in module with top-level code".
 
-**Root cause**: When building with xcodebuild (vs swift build), the compiler doesn't automatically treat the entry point as a library. The `@main` attribute conflicts with perceived "top-level code".
-
-**Prevention**: Add `OTHER_SWIFT_FLAGS: "-parse-as-library"` to project.yml settings for the target.
-
-**Milestone**: M2
+**Prevention**: Add to project.yml:
+```yaml
+OTHER_SWIFT_FLAGS: "-parse-as-library"
+```
 
 ---
 
-## 2024-12-19: Unsigned Mac Catalyst apps crash (SIGABRT) when accessing HomeKit
+### 2024-12-19: ArgumentParser flags can't default to true
 
-**What happened**: Running the built app with `--dry-run` (which calls HomeKit APIs) crashed with exit code 134 (SIGABRT).
+**What happened**: Validation error when `@Flag` has `= true`.
 
-**Root cause**: Mac Catalyst apps require proper code signing with entitlements to access HomeKit. Building with `CODE_SIGNING_REQUIRED=NO` produces a working binary for non-HomeKit code, but crashes when HMHomeManager is instantiated.
+**Prevention**: Use inversion parameter:
+```swift
+@Flag(inversion: .prefixedNo, help: "...")
+var deleteUnlisted = true
+```
 
-**Prevention**: 
-- For development testing of HomeKit features, need to sign the app (or test parsing/validation separately first)
-- Non-HomeKit code paths (like config parsing without `--dry-run`) work fine unsigned
-- For full testing, use `codesign` to ad-hoc sign with entitlements
+---
 
-**Milestone**: M3
+### 2024-12-20: Xcode passes debug arguments that break ArgumentParser
+
+**What happened**: App crashed with "Unknown option '-NSDocumentRevisionsDebugMode'".
+
+**Prevention**: Filter Xcode args before parsing:
+```swift
+private func filterXcodeArgs() -> [String] {
+    var args = Array(CommandLine.arguments.dropFirst())
+    return args.filter { !$0.hasPrefix("-NS") && !$0.hasPrefix("-Apple") }
+}
+```
